@@ -133,6 +133,8 @@ pub mod day01 {
     }
 }
 
-pub fn day02() {
-    todo!()
+pub mod day02 {
+    pub fn day02() {
+        todo!()
+    }
 }
