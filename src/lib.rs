@@ -1,9 +1,11 @@
 pub mod day01 {
-    use std::{fs, iter::zip};
+    use std::{collections::HashMap, fs, iter::zip};
 
     use parse::parse;
 
     pub fn day01() {
+        println!("day 01");
+
         let input = fs::read_to_string("day01_input.txt").unwrap();
         let lines = parse(&input);
         let mut left = Vec::from_iter(lines.iter().map(|l| l.0));
@@ -11,12 +13,27 @@ pub mod day01 {
         left.sort();
         right.sort();
 
-        let mut sum: u64 = 0;
-        for (left, right) in zip(left, right) {
-            sum += left.abs_diff(right) as u64;
+        let mut total_diff: u64 = 0;
+        for (left, right) in zip(&left, &right) {
+            total_diff += left.abs_diff(*right) as u64;
+        }
+        println!("total diff: {}", total_diff);
+
+        let mut similarity: u128 = 0;
+
+        let mut right_nums: HashMap<Num, u16> = HashMap::new();
+        for i in &right {
+            if let Some(count) = right_nums.get_mut(i) {
+                *count += 1;
+            } else {
+                right_nums.insert(*i, 1);
+            }
         }
 
-        println!("{sum}");
+        for i in &left {
+            similarity += (*i as u128) * (*right_nums.get(i).unwrap_or(&0) as u128);
+        }
+        println!("similarity: {}", similarity);
     }
 
     type Num = u32;
