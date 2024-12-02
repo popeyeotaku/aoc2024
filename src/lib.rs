@@ -141,12 +141,20 @@ pub mod day02 {
         let lines = parse::parse(&input);
 
         let mut safes: u32 = 0;
-        for line in lines {
-            if analyze(&line) {
+        for line in &lines {
+            if analyze(line.as_slice()) {
                 safes += 1;
             }
         }
         println!("safe reports: {}", safes);
+
+        let mut safes: u32 = 0;
+        for line in &lines {
+            if find_safe(line.as_slice()) {
+                safes += 1;
+            }
+        }
+        println!("safes with toleration: {}", safes);
     }
 
     #[derive(Copy, Clone, PartialEq)]
@@ -183,6 +191,21 @@ pub mod day02 {
             prev = *next;
         }
         true
+    }
+
+    fn find_safe(line: &[Num]) -> bool {
+        if analyze(line) {
+            true
+        } else {
+            for i in 0..line.len() {
+                let mut line = Vec::from_iter(line.iter().cloned());
+                line.remove(i);
+                if analyze(&line) {
+                    return true;
+                }
+            }
+            false
+        }
     }
 
     type Num = u8;
