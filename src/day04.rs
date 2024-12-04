@@ -157,34 +157,38 @@ mod dir {
 mod grid {
     use super::dir::Dir;
 
-    struct GridChars<'a> {
-        grid: &'a Grid,
-        coord: (usize, usize),
-    }
+    #[cfg(debug_assertions)]
+    pub mod chars {
+        use super::Grid;
 
-    impl<'a> GridChars<'a> {
-        pub fn new(grid: &'a Grid) -> Self {
-            Self {
-                grid,
-                coord: (0, 0),
+        pub struct GridChars<'a> {
+            grid: &'a Grid,
+            coord: (usize, usize),
+        }
+
+        impl<'a> GridChars<'a> {
+            pub fn new(grid: &'a Grid) -> Self {
+                Self {
+                    grid,
+                    coord: (0, 0),
+                }
             }
         }
-    }
+        impl Iterator for GridChars<'_> {
+            type Item = char;
 
-    impl Iterator for GridChars<'_> {
-        type Item = char;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            let (x, y) = self.coord;
-            if x >= self.grid.width {
-                self.coord = (0, y + 1);
-                Some('\n')
-            } else if y >= self.grid.height() {
-                None
-            } else {
-                let c = self.grid.get(self.coord);
-                self.coord = (x + 1, y);
-                Some(c)
+            fn next(&mut self) -> Option<Self::Item> {
+                let (x, y) = self.coord;
+                if x >= self.grid.width {
+                    self.coord = (0, y + 1);
+                    Some('\n')
+                } else if y >= self.grid.height() {
+                    None
+                } else {
+                    let c = self.grid.get(self.coord);
+                    self.coord = (x + 1, y);
+                    Some(c)
+                }
             }
         }
     }
@@ -203,8 +207,11 @@ mod grid {
                 elems.extend(line.chars());
             }
             let grid = Self { width, elems };
-            let grid_s = String::from_iter(GridChars::new(&grid));
-            assert_eq!(&grid_s, s);
+            #[cfg(debug_assertions)]
+            {
+                let grid_s = String::from_iter(chars::GridChars::new(&grid));
+                debug_assert_eq!(&grid_s, s);
+            }
             grid
         }
 
