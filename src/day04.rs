@@ -1,6 +1,6 @@
 use std::fs;
 
-use find::count_xmas;
+use find::{count_mas, count_xmas};
 use grid::Grid;
 
 pub fn day04() {
@@ -8,6 +8,9 @@ pub fn day04() {
     let grid = Grid::new(&input);
     let count = count_xmas(&grid);
     println!("XMAS count: {}", count);
+
+    let count = count_mas(&grid);
+    println!("MAS count: {}", count);
 }
 
 mod find {
@@ -17,7 +20,43 @@ mod find {
         grid::Grid,
     };
 
-    const WORD: &str = "XMAS";
+    const XMAS: &str = "XMAS";
+
+    pub fn count_mas(grid: &Grid) -> u64 {
+        let mut count: u64 = 0;
+
+        for y in 0..grid.height() {
+            for x in 0..grid.width {
+                if find_mas(grid, (x, y)) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    fn find_mas(grid: &Grid, start_coord: (usize, usize)) -> bool {
+        let (x, y) = start_coord;
+        let a_coord = (x + 1, y + 1);
+        if grid.valid(a_coord) && grid.get(a_coord) == 'A' {
+            let nw = start_coord;
+            let ne = (x + 2, y);
+            let sw = (x, y + 2);
+            let se = (x + 2, y + 2);
+            if [nw, ne, sw, se].iter().copied().all(|c| grid.valid(c)) {
+                let nw = grid.get(nw);
+                let ne = grid.get(ne);
+                let sw = grid.get(sw);
+                let se = grid.get(se);
+                ((nw == 'M' && se == 'S') || (nw == 'S' && se == 'M'))
+                    && ((ne == 'M' && sw == 'S') || (ne == 'S' && sw == 'M'))
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
 
     pub fn count_xmas(grid: &Grid) -> u64 {
         let mut count: u64 = 0;
@@ -32,7 +71,7 @@ mod find {
     fn find_coord(grid: &Grid, coord: (usize, usize)) -> u8 {
         let mut count = 0;
         for dir in ALL_DIRS {
-            if find_str(grid, WORD, coord, dir) {
+            if find_str(grid, XMAS, coord, dir) {
                 count += 1;
             }
         }
@@ -174,10 +213,14 @@ mod grid {
             self.elems.len() / self.width
         }
 
+        pub fn valid(&self, coord: (usize, usize)) -> bool {
+            let (x, y) = coord;
+            x < self.width && y < self.height()
+        }
+
         pub fn get(&self, coords: (usize, usize)) -> char {
+            assert!(self.valid(coords));
             let (x, y) = coords;
-            assert!(x < self.width);
-            assert!(y < self.height());
             self.elems[y * self.width + x]
         }
 
