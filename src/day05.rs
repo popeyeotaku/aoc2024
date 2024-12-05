@@ -68,6 +68,7 @@ mod update {
                     if befores.contains(&update[j]) {
                         update.swap(i, j);
                         swapped = true;
+                        break;
                     }
                 }
             }
