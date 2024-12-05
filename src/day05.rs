@@ -19,18 +19,15 @@ pub fn day05() {
     println!("sum of good middles: {}", sum);
 }
 
-type Page = u16;
+type Page = u8;
 type Before = (Page, Page);
 type BeforeMap = HashMap<Page, HashSet<Page>>;
 type Update = Vec<Page>;
 
 mod befores {
-    use std::{
-        collections::{HashMap, HashSet},
-        mem,
-    };
+    use std::collections::{HashMap, HashSet};
 
-    use super::{Before, BeforeMap, Page};
+    use super::{Before, BeforeMap};
 
     pub fn calc_befores(befores: Vec<Before>) -> BeforeMap {
         let mut map: BeforeMap = HashMap::new();
@@ -42,24 +39,7 @@ mod befores {
                 map.insert(key, HashSet::from([before]));
             }
         }
-        let keys: Vec<Page> = map.keys().copied().collect();
 
-        let mut updated = true;
-        while updated {
-            updated = false;
-
-            for key in &keys {
-                let cur_befores = map.get(key).unwrap();
-                let mut new_befores = cur_befores.clone();
-                for before in cur_befores {
-                    new_befores.extend(map.get(before).unwrap());
-                }
-                if cur_befores != &new_befores {
-                    updated = true;
-                    let _ = mem::replace(map.get_mut(key).unwrap(), new_befores);
-                }
-            }
-        }
         map
     }
 }
