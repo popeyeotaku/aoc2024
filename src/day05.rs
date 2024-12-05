@@ -5,7 +5,7 @@ use std::{
 
 use befores::calc_befores;
 use parse::parse;
-use update::{is_good, middle_page};
+use update::{fix_order, is_good, middle_page};
 
 pub fn day05() {
     let input = fs::read_to_string("day05_input.txt").unwrap();
@@ -17,6 +17,13 @@ pub fn day05() {
         .map(|u| middle_page(u) as u32)
         .sum();
     println!("sum of good middles: {}", sum);
+    let sum: u32 = updates
+        .iter()
+        .filter(|u| !is_good(u, &before_map))
+        .map(|u| fix_order(u, &before_map))
+        .map(|u| middle_page(&u) as u32)
+        .sum();
+    println!("sum of fixed middles: {}", sum);
 }
 
 type Page = u8;
@@ -48,6 +55,28 @@ mod update {
     use std::collections::HashSet;
 
     use super::{BeforeMap, Page, Update};
+
+    pub fn fix_order(update: &Update, before_map: &BeforeMap) -> Update {
+        let update_set = HashSet::from_iter(update.iter().copied());
+        let mut update = update.clone();
+        let mut swapped = true;
+        while swapped {
+            swapped = false;
+
+            'l: for i in 1..update.len() {
+                let key = update[i];
+                let befores = before_map.get(&key).unwrap() & &update_set;
+                for j in 0..i {
+                    if befores.contains(&update[j]) {
+                        update.swap(i, j);
+                        swapped = true;
+                        break 'l;
+                    }
+                }
+            }
+        }
+        update
+    }
 
     pub fn is_good(update: &Update, befores: &BeforeMap) -> bool {
         let update_set = HashSet::from_iter(update.iter().copied());
@@ -189,7 +218,7 @@ mod parse {
 
 #[cfg(test)]
 mod tests {
-    use crate::day05::update::{is_good, middle_page};
+    use crate::day05::update::{fix_order, is_good, middle_page};
 
     use super::{befores::calc_befores, parse::parse};
 
@@ -232,5 +261,13 @@ mod tests {
             .map(|u| middle_page(u) as u32)
             .sum();
         assert_eq!(sum, 143);
+
+        let sum: u32 = updates
+            .iter()
+            .filter(|u| !is_good(u, &before_map))
+            .map(|u| fix_order(u, &before_map))
+            .map(|u| middle_page(&u) as u32)
+            .sum();
+        assert_eq!(sum, 123);
     }
 }
