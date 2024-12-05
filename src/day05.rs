@@ -61,14 +61,13 @@ mod update {
         while swapped {
             swapped = false;
 
-            'l: for i in 1..update.len() {
+            for i in 1..update.len() {
                 let key = update[i];
                 let befores = before_map.get(&key).unwrap();
                 for j in 0..i {
                     if befores.contains(&update[j]) {
                         update.swap(i, j);
                         swapped = true;
-                        break 'l;
                     }
                 }
             }
