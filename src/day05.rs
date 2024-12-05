@@ -52,12 +52,10 @@ mod befores {
 }
 
 mod update {
-    use std::collections::HashSet;
 
     use super::{BeforeMap, Page, Update};
 
     pub fn fix_order(update: &Update, before_map: &BeforeMap) -> Update {
-        let update_set = HashSet::from_iter(update.iter().copied());
         let mut update = update.clone();
         let mut swapped = true;
         while swapped {
@@ -65,7 +63,7 @@ mod update {
 
             'l: for i in 1..update.len() {
                 let key = update[i];
-                let befores = before_map.get(&key).unwrap() & &update_set;
+                let befores = before_map.get(&key).unwrap();
                 for j in 0..i {
                     if befores.contains(&update[j]) {
                         update.swap(i, j);
@@ -79,9 +77,8 @@ mod update {
     }
 
     pub fn is_good(update: &Update, befores: &BeforeMap) -> bool {
-        let update_set = HashSet::from_iter(update.iter().copied());
         for i in 0..update.len() {
-            let befores = befores.get(&update[i]).unwrap() & &update_set;
+            let befores = befores.get(&update[i]).unwrap();
             for before in &update[0..i] {
                 if befores.contains(before) {
                     return false;
