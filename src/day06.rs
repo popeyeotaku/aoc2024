@@ -1,7 +1,6 @@
 use std::fs;
 
-use guard::Guard;
-use map::{Map, Pos, Square};
+use stuck::find_stucks;
 
 pub fn day06() {
     let input = fs::read_to_string("day06_input.txt").unwrap();
@@ -9,32 +8,51 @@ pub fn day06() {
     let visited_squares = guard.clone().find_visited(&map).unwrap();
     println!("visited squares: {}", visited_squares.len());
 
-    let loops = find_stucks(&map, &guard);
+    let loops = find_stucks(&map, &guard, &visited_squares);
     println!("possible stucks: {}", loops);
 }
 
-fn find_stucks(map: &Map, guard: &Guard) -> usize {
-    let mut loops: usize = 0;
-    for x in 0..map.width {
-        for y in 0..map.height() {
-            let pos = Pos { x, y: y as u16 };
-            if Some(pos) == guard.pos {
-                continue;
-            }
-            if map.get(pos) == Some(Square::Empty) {
-                let mut new_map = map.clone();
-                new_map.put(pos, Square::Obstacle);
-                if guard.clone().find_visited(&new_map).is_none() {
-                    loops += 1;
+mod stuck {
+    use std::collections::HashSet;
+
+    use super::{
+        dir::ALL_DIRS,
+        guard::Guard,
+        map::{Map, Pos, Square, TryAdd},
+    };
+
+    fn stuckable(map: &Map, guard: &Guard, initial_visited: &HashSet<Pos>) -> HashSet<Pos> {
+        let mut stuckable: HashSet<Pos> = HashSet::new();
+        for pos in initial_visited {
+            for dir in ALL_DIRS {
+                if let Some(new_pos) = pos.try_add(dir) {
+                    if map.get(new_pos) == Some(Square::Empty) {
+                        stuckable.insert(new_pos);
+                    }
                 }
             }
         }
+        stuckable.remove(guard.pos.as_ref().unwrap());
+        stuckable
     }
-    loops
+
+    pub fn find_stucks(map: &Map, guard: &Guard, initial_visited: &HashSet<Pos>) -> usize {
+        let mut loops: usize = 0;
+        for pos in stuckable(map, guard, initial_visited) {
+            let mut new_map = map.clone();
+            new_map.put(pos, Square::Obstacle);
+            if guard.clone().find_visited(&new_map).is_none() {
+                loops += 1;
+            }
+        }
+        loops
+    }
 }
 
 mod guard {
     use std::collections::HashSet;
+
+    use crate::day06::map::TryAdd;
 
     use super::{
         dir::Dir,
@@ -57,27 +75,27 @@ mod guard {
 
         pub fn step(&mut self, map: &Map) {
             let old_pos = self.pos.unwrap();
-            let new_pos = old_pos + self.dir;
-            debug_assert_eq!(map.get(old_pos), Some(Square::Empty));
-            match map.get(new_pos) {
-                Some(Square::Empty) => self.pos = Some(new_pos),
-                Some(Square::Obstacle) => self.dir = self.dir.rotate(),
-                None => self.pos = None,
+            if let Some(new_pos) = old_pos.try_add(self.dir) {
+                debug_assert_eq!(map.get(old_pos), Some(Square::Empty));
+                match map.get(new_pos) {
+                    Some(Square::Empty) => self.pos = Some(new_pos),
+                    Some(Square::Obstacle) => self.dir = self.dir.rotate(),
+                    None => self.pos = None,
+                }
+            } else {
+                self.pos = None;
             }
         }
 
         pub fn find_visited(&mut self, map: &Map) -> Option<HashSet<Pos>> {
-            let mut total_steps: usize = 1;
             let mut visited: HashSet<Pos> = HashSet::new();
+            let mut visited_dir: HashSet<(Pos, Dir)> = HashSet::new();
             while let Some(cur_pos) = self.pos {
-                if total_steps >= map.total_squares() {
+                if !visited_dir.insert((cur_pos, self.dir)) {
                     return None;
                 }
                 visited.insert(cur_pos);
                 self.step(map);
-                if self.pos != Some(cur_pos) {
-                    total_steps += 1;
-                }
             }
             Some(visited)
         }
@@ -85,13 +103,15 @@ mod guard {
 }
 
 mod dir {
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
     pub enum Dir {
         N,
         S,
         E,
         W,
     }
+
+    pub const ALL_DIRS: [Dir; 4] = [Dir::N, Dir::S, Dir::E, Dir::W];
 
     impl Dir {
         pub fn vector(self) -> (i8, i8) {
@@ -125,15 +145,37 @@ mod map {
         pub y: u16,
     }
 
+    pub trait TryAdd<Rhs> {
+        type Output: Sized;
+
+        fn try_add(self, rhs: Rhs) -> Option<Self::Output>;
+    }
+
+    impl TryAdd<(i8, i8)> for Pos {
+        type Output = Self;
+
+        fn try_add(self, rhs: (i8, i8)) -> Option<Self::Output> {
+            let (x1, y1) = (self.x, self.y);
+            let (x2, y2) = rhs;
+            let x: u16 = (x1 as i16).checked_add(x2 as i16)?.try_into().ok()?;
+            let y: u16 = (y1 as i16).checked_add(y2 as i16)?.try_into().ok()?;
+            Some(Self { x, y })
+        }
+    }
+
+    impl TryAdd<Dir> for Pos {
+        type Output = Self;
+
+        fn try_add(self, rhs: Dir) -> Option<Self::Output> {
+            self.try_add(rhs.vector())
+        }
+    }
+
     impl ops::Add<(i8, i8)> for Pos {
         type Output = Self;
 
         fn add(self, rhs: (i8, i8)) -> Self::Output {
-            let (x1, y1) = (self.x, self.y);
-            let (x2, y2) = rhs;
-            let x = ((x1 as i16) + (x2 as i16)) as u16;
-            let y = ((y1 as i16) + (y2 as i16)) as u16;
-            Self { x, y }
+            self.try_add(rhs).unwrap()
         }
     }
 
@@ -141,7 +183,7 @@ mod map {
         type Output = Self;
 
         fn add(self, rhs: Dir) -> Self::Output {
-            self + rhs.vector()
+            self.try_add(rhs).unwrap()
         }
     }
 
@@ -158,10 +200,6 @@ mod map {
     }
 
     impl Map {
-        pub fn total_squares(&self) -> usize {
-            self.elems.len()
-        }
-
         pub fn height(&self) -> usize {
             self.elems.len() / (self.width as usize)
         }
@@ -245,7 +283,7 @@ mod tests {
         assert_eq!(map.get(Pos { x: 9, y: 1 }), Some(Square::Obstacle));
         let visited = guard.clone().find_visited(&map).unwrap();
         assert_eq!(visited.len(), 41);
-        let stucks = find_stucks(&map, &guard);
+        let stucks = find_stucks(&map, &guard, &visited);
         assert_eq!(stucks, 6);
     }
 }
