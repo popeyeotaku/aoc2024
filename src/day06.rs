@@ -1,10 +1,36 @@
 use std::fs;
 
+use guard::Guard;
+use map::{Map, Pos, Square};
+
 pub fn day06() {
     let input = fs::read_to_string("day06_input.txt").unwrap();
-    let (map, mut guard) = map::load_map(&input);
-    let visited_squares = guard.find_visited(&map);
-    println!("visited square: {}", visited_squares.len());
+    let (map, guard) = map::load_map(&input);
+    let visited_squares = guard.clone().find_visited(&map).unwrap();
+    println!("visited squares: {}", visited_squares.len());
+
+    let loops = find_stucks(&map, &guard);
+    println!("possible stucks: {}", loops);
+}
+
+fn find_stucks(map: &Map, guard: &Guard) -> usize {
+    let mut loops: usize = 0;
+    for x in 0..map.width {
+        for y in 0..map.height() {
+            let pos = Pos { x, y: y as u16 };
+            if Some(pos) == guard.pos {
+                continue;
+            }
+            if map.get(pos) == Some(Square::Empty) {
+                let mut new_map = map.clone();
+                new_map.put(pos, Square::Obstacle);
+                if guard.clone().find_visited(&new_map).is_none() {
+                    loops += 1;
+                }
+            }
+        }
+    }
+    loops
 }
 
 mod guard {
@@ -15,8 +41,9 @@ mod guard {
         map::{Map, Pos, Square},
     };
 
+    #[derive(Clone)]
     pub struct Guard {
-        pos: Option<Pos>,
+        pub pos: Option<Pos>,
         dir: Dir,
     }
 
@@ -39,13 +66,20 @@ mod guard {
             }
         }
 
-        pub fn find_visited(&mut self, map: &Map) -> HashSet<Pos> {
+        pub fn find_visited(&mut self, map: &Map) -> Option<HashSet<Pos>> {
+            let mut total_steps: usize = 1;
             let mut visited: HashSet<Pos> = HashSet::new();
             while let Some(cur_pos) = self.pos {
+                if total_steps >= map.total_squares() {
+                    return None;
+                }
                 visited.insert(cur_pos);
                 self.step(map);
+                if self.pos != Some(cur_pos) {
+                    total_steps += 1;
+                }
             }
-            visited
+            Some(visited)
         }
     }
 }
@@ -117,12 +151,17 @@ mod map {
         Obstacle,
     }
 
+    #[derive(Clone)]
     pub struct Map {
-        width: u16,
+        pub width: u16,
         elems: Vec<Square>,
     }
 
     impl Map {
+        pub fn total_squares(&self) -> usize {
+            self.elems.len()
+        }
+
         pub fn height(&self) -> usize {
             self.elems.len() / (self.width as usize)
         }
@@ -132,6 +171,15 @@ mod map {
                 Some(self.elems[(pos.y as usize) * self.height() + (pos.x as usize)])
             } else {
                 None
+            }
+        }
+
+        pub fn put(&mut self, pos: Pos, square: Square) {
+            let height = self.height();
+            if pos.x < self.width && pos.y < (height as u16) {
+                self.elems[(pos.y as usize) * height + (pos.x as usize)] = square;
+            } else {
+                panic!("bad coords")
             }
         }
     }
@@ -173,7 +221,10 @@ mod map {
 
 #[cfg(test)]
 mod tests {
-    use crate::day06::map::{Pos, Square};
+    use crate::day06::{
+        find_stucks,
+        map::{Pos, Square},
+    };
 
     use super::map::load_map;
 
@@ -190,9 +241,11 @@ mod tests {
 #.........
 ......#...
 ";
-        let (map, mut guard) = load_map(input);
+        let (map, guard) = load_map(input);
         assert_eq!(map.get(Pos { x: 9, y: 1 }), Some(Square::Obstacle));
-        let visited = guard.find_visited(&map);
+        let visited = guard.clone().find_visited(&map).unwrap();
         assert_eq!(visited.len(), 41);
+        let stucks = find_stucks(&map, &guard);
+        assert_eq!(stucks, 6);
     }
 }
