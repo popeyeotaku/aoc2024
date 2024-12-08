@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs};
+use std::fs;
 
 pub fn day07() {
     let input = fs::read_to_string("day07_input.txt").unwrap();
@@ -9,7 +9,7 @@ pub fn day07() {
 type Num = u64;
 type Out1 = Num;
 type Out2 = ();
-type Test = (Num, HashSet<Num>);
+type Test = (Num, Vec<Num>);
 
 mod part1 {
     use std::collections::HashSet;
@@ -24,19 +24,68 @@ mod part1 {
         sum
     }
 
-    fn good(test: &Test) -> bool {
+    pub fn good(test: &Test) -> bool {
         let (label, nums) = test;
-        if nums.iter().copied().product::<Num>() == *label {
+        let num_set: HashSet<Num> = HashSet::from_iter(nums.iter().copied());
+        if nums.iter().copied().product::<Num>() == *label
+            || nums.iter().copied().sum::<Num>() == *label
+        {
             true
         } else {
-            for permutation in Permutations::new(nums.iter().copied()) {
-                let set = HashSet::from_iter(permutation.iter().copied());
+            for permutation in AllPerms::new(nums.as_slice()) {
+                let perm_set = HashSet::from_iter(permutation.iter().copied());
                 let sum: Num = permutation.iter().sum();
-                if *label - sum == nums.difference(&set).copied().product() {
+                if *label - sum == num_set.difference(&perm_set).copied().product() {
                     return true;
                 }
             }
             false
+        }
+    }
+
+    pub struct AllPerms<'a> {
+        nums: &'a [Num],
+        i: usize,
+        cur_perm: Option<Vec<Vec<Num>>>,
+    }
+
+    impl<'a> AllPerms<'a> {
+        pub fn new(nums: &'a [Num]) -> Self {
+            Self {
+                nums,
+                i: 1,
+                cur_perm: None,
+            }
+        }
+    }
+
+    impl Iterator for AllPerms<'_> {
+        type Item = Vec<Num>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if let Some(p) = &mut self.cur_perm {
+                let elem = p.pop().unwrap();
+                if p.is_empty() {
+                    self.cur_perm = None;
+                }
+                Some(elem)
+            } else if self.i < self.nums.len() {
+                let i = self.i;
+                self.i += 1;
+                let mut p_set: HashSet<Vec<Num>> = HashSet::new();
+                for mut p in Permutations::new(self.nums.iter().copied()) {
+                    p.drain(i..);
+                    p_set.insert(p);
+                }
+                let mut p_vec = Vec::from_iter(p_set.drain());
+                let elem = p_vec.pop().unwrap();
+                if !p_vec.is_empty() {
+                    self.cur_perm = Some(p_vec);
+                }
+                Some(elem)
+            } else {
+                None
+            }
         }
     }
 
@@ -92,11 +141,12 @@ mod part1 {
 }
 
 mod parse {
-    //! tests: line+
+    //! tests: line+ trailer
     //! line: label nums '\n'
     //! label: num ':'
     //! nums: num num+
-    use std::{collections::HashSet, iter::Peekable};
+    //! trailer: '\n'*
+    use std::iter::Peekable;
 
     use token::{Token, Tokenizer};
 
@@ -105,13 +155,21 @@ mod parse {
     pub fn parse(input: &str) -> Vec<Test> {
         let mut t: Peekable<Tokenizer<'_>> = Tokenizer::new(input).peekable();
         let mut tests = vec![line(&mut t)];
-        while t.peek().is_some() {
+        while let Some(&Token::Num(_)) = t.peek() {
             tests.push(line(&mut t));
         }
+        trailer(&mut t);
+        assert!(t.peek().is_none());
         tests
     }
 
-    fn line(t: &mut Peekable<Tokenizer<'_>>) -> (Num, HashSet<Num>) {
+    fn trailer(t: &mut Peekable<Tokenizer<'_>>) {
+        while let Some(&Token::NewLine) = t.peek() {
+            t.next().unwrap();
+        }
+    }
+
+    fn line(t: &mut Peekable<Tokenizer<'_>>) -> (Num, Vec<Num>) {
         let label = label(t);
         let nums = nums(t);
         assert_eq!(t.next(), Some(Token::NewLine));
@@ -124,13 +182,13 @@ mod parse {
         num
     }
 
-    fn nums(t: &mut Peekable<Tokenizer<'_>>) -> HashSet<Num> {
-        let mut nums: HashSet<Num> = HashSet::with_capacity(2);
-        nums.insert(t.next().unwrap().num());
-        assert!(nums.insert(t.next().unwrap().num()));
+    fn nums(t: &mut Peekable<Tokenizer<'_>>) -> Vec<Num> {
+        let mut nums: Vec<Num> = Vec::with_capacity(2);
+        nums.push(t.next().unwrap().num());
+        nums.push(t.next().unwrap().num());
 
         while let Some(Token::Num(num)) = t.peek() {
-            assert!(nums.insert(*num));
+            nums.push(*num);
             t.next().unwrap();
         }
         nums
@@ -216,9 +274,57 @@ mod parse {
 mod tests {
     use std::collections::HashSet;
 
-    use crate::day07::part1;
+    use crate::day07::{
+        parse::parse,
+        part1::{self, good},
+        Test,
+    };
 
-    use super::{part1::Permutations, Num};
+    use super::{
+        part1::{AllPerms, Permutations},
+        Num,
+    };
+
+    #[test]
+    fn test_all_perms() {
+        let i: [Num; 3] = [1, 2, 3];
+        let j: HashSet<Vec<Num>> = HashSet::from([
+            vec![1],
+            vec![2],
+            vec![3],
+            vec![1, 2],
+            vec![2, 1],
+            vec![1, 3],
+            vec![3, 1],
+            vec![2, 3],
+            vec![3, 2],
+        ]);
+        let k: HashSet<Vec<Num>> = HashSet::from_iter(AllPerms::new(&i));
+        assert_eq!(j, k);
+    }
+
+    #[test]
+    fn test_parse() {
+        let input = "123: 4 56 78
+11: 12 1 4 12
+";
+        assert_eq!(
+            parse(input),
+            vec![(123, vec![4, 56, 78]), (11, vec!(12, 1, 4, 12))]
+        );
+    }
+
+    #[test]
+    fn test_good() {
+        let tests: [Test; 3] = [
+            (190, vec![10, 19]),
+            (3267, vec![81, 40, 27]),
+            (292, vec![11, 6, 16, 20]),
+        ];
+        for test in &tests {
+            assert!(good(test));
+        }
+    }
 
     #[test]
     fn test_part1() {
@@ -230,7 +336,8 @@ mod tests {
 161011: 16 10 13
 192: 17 8 14
 21037: 9 7 18 13
-292: 11 6 16 20";
+292: 11 6 16 20
+";
         assert_eq!(part1::part1(input), 3749);
     }
 
