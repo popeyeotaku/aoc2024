@@ -184,15 +184,13 @@ where
     T: Sized + Operator + Binary<N>,
     N: Clone,
 {
-    if args.len() == 2 {
-        assert_eq!(ops.len(), 1);
-        ops[0].exec(args[0].clone(), args[1].clone())
-    } else {
-        assert!(ops.len() > 1);
-        let left = args[0].clone();
-        let right = exec(&args[1..], &ops[1..]);
-        ops[0].exec(left, right)
+    let mut args = args.iter().cloned();
+    let mut result = args.next().unwrap();
+    for op in ops {
+        result = op.exec(result, args.next().unwrap());
     }
+    assert!(args.next().is_none());
+    result
 }
 
 mod perms {
@@ -375,7 +373,7 @@ mod tests {
     use crate::day07::{
         good,
         parse::parse,
-        part1::{self, Op},
+        part1::{self},
         part2::{self, concat_num},
         perms::OpPerms,
         Num, Test,
@@ -423,13 +421,23 @@ mod tests {
 
     #[test]
     fn test_good() {
-        let tests: [Test; 3] = [
+        use part1;
+        use part2;
+        let test1: [Test; 3] = [
             (190, vec![10, 19]),
             (3267, vec![81, 40, 27]),
             (292, vec![11, 6, 16, 20]),
         ];
-        for test in &tests {
-            assert!(good::<Op, Num>(test));
+        for test in &test1 {
+            assert!(good::<part1::Op, Num>(test));
+        }
+        let test2: [Test; 3] = [
+            (156, vec![15, 6]),
+            (7290, vec![6, 8, 6, 15]),
+            (192, vec![17, 8, 14]),
+        ];
+        for test in test1.iter().chain(test2.iter()) {
+            assert!(good::<part2::Op, Num>(test));
         }
     }
 
