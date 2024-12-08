@@ -12,7 +12,8 @@ type Out2 = ();
 type Test = (Num, Vec<Num>);
 
 mod part1 {
-    use std::collections::HashSet;
+
+    use super::ops::{operate, perms::OpPerms};
 
     use crate::day07::parse::parse;
 
@@ -26,120 +27,99 @@ mod part1 {
 
     pub fn good(test: &Test) -> bool {
         let (label, nums) = test;
-        let num_set: HashSet<Num> = HashSet::from_iter(nums.iter().copied());
-        if nums.iter().copied().product::<Num>() == *label
-            || nums.iter().copied().sum::<Num>() == *label
-        {
-            true
-        } else {
-            for permutation in AllPerms::new(nums.as_slice()) {
-                let perm_set = HashSet::from_iter(permutation.iter().copied());
-                let sum: Num = permutation.iter().sum();
-                if *label - sum == num_set.difference(&perm_set).copied().product() {
-                    return true;
-                }
-            }
-            false
-        }
-    }
-
-    pub struct AllPerms<'a> {
-        nums: &'a [Num],
-        i: usize,
-        cur_perm: Option<Vec<Vec<Num>>>,
-    }
-
-    impl<'a> AllPerms<'a> {
-        pub fn new(nums: &'a [Num]) -> Self {
-            Self {
-                nums,
-                i: 1,
-                cur_perm: None,
+        for ops in OpPerms::new(nums.len() - 1) {
+            if operate(nums, &ops) == *label {
+                return true;
             }
         }
+        false
+    }
+}
+
+mod ops {
+    use crate::day07::Num;
+
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub enum Op {
+        Add,
+        Mul,
     }
 
-    impl Iterator for AllPerms<'_> {
-        type Item = Vec<Num>;
+    pub type Total = u64;
 
-        fn next(&mut self) -> Option<Self::Item> {
-            if let Some(p) = &mut self.cur_perm {
-                let elem = p.pop().unwrap();
-                if p.is_empty() {
-                    self.cur_perm = None;
-                }
-                Some(elem)
-            } else if self.i < self.nums.len() {
-                let i = self.i;
-                self.i += 1;
-                let mut p_set: HashSet<Vec<Num>> = HashSet::new();
-                for mut p in Permutations::new(self.nums.iter().copied()) {
-                    p.drain(i..);
-                    p_set.insert(p);
-                }
-                let mut p_vec = Vec::from_iter(p_set.drain());
-                let elem = p_vec.pop().unwrap();
-                if !p_vec.is_empty() {
-                    self.cur_perm = Some(p_vec);
-                }
-                Some(elem)
-            } else {
-                None
+    pub fn operate(operands: &[Num], operators: &[Op]) -> Total {
+        let mut stack = Vec::from_iter(operands.iter().copied().map(|n| n as Total).rev());
+        for op in operators {
+            let right = stack.pop().unwrap();
+            let left = stack.pop().unwrap();
+            match op {
+                Op::Add => stack.push(left + right),
+                Op::Mul => stack.push(left * right),
             }
         }
+        assert_eq!(stack.len(), 1);
+        stack.pop().unwrap()
     }
 
-    pub struct Permutations {
-        nums: Vec<Num>,
-        end: bool,
-    }
+    pub mod perms {
+        use std::mem;
 
-    impl Permutations {
-        pub fn new<I>(nums: I) -> Self
-        where
-            I: Iterator<Item = Num>,
-        {
-            Self {
-                nums: Vec::from_iter(nums),
-                end: false,
+        use super::Op;
+
+        /// All permutations of a given number of operators.
+        /// Since there's only 2 operators, we simulate binary incrementing.
+        pub struct OpPerms {
+            ops: Vec<Op>,
+            end: bool,
+        }
+
+        impl OpPerms {
+            pub fn new(num_ops: usize) -> Self {
+                assert!(num_ops > 0);
+                Self {
+                    ops: vec![Op::Add; num_ops],
+                    end: false,
+                }
             }
         }
 
-        fn find_largest<I, F>(&self, indices: I, f: F) -> Option<usize>
-        where
-            F: Fn(usize) -> bool,
-            I: Iterator<Item = usize>,
-        {
-            indices.filter(|i| f(*i)).last()
+        /// Simulate binary incrementation on the operators.
+        ///
+        /// (add=0,mul=1)
+        fn inc_ops(ops: &[Op]) -> (Vec<Op>, bool) {
+            let mut carry: bool = true;
+            let mut new_ops = Vec::with_capacity(ops.len());
+            for op in ops.iter().rev() {
+                let (new_carry, new_op) = match (op, carry) {
+                    (Op::Add, false) => (false, Op::Add),
+                    (Op::Add, true) => (false, Op::Mul),
+                    (Op::Mul, false) => (false, Op::Mul),
+                    (Op::Mul, true) => (true, Op::Add),
+                };
+                carry = new_carry;
+                new_ops.push(new_op);
+            }
+            new_ops.reverse();
+            (new_ops, carry)
         }
-    }
 
-    impl Iterator for Permutations {
-        type Item = Vec<Num>;
+        impl Iterator for OpPerms {
+            type Item = Vec<Op>;
 
-        fn next(&mut self) -> Option<Self::Item> {
-            if self.end {
-                None
-            } else {
-                let out = self.nums.clone();
-                let len = self.nums.len();
-                if let Some(k) =
-                    self.find_largest(0..(len - 1), |k| self.nums[k] < self.nums[k + 1])
-                {
-                    let l = self
-                        .find_largest(k..len, |l| self.nums[k] < self.nums[l])
-                        .unwrap();
-                    self.nums.swap(k, l);
-                    self.nums[(k + 1)..len].reverse();
+            fn next(&mut self) -> Option<Self::Item> {
+                if self.end {
+                    None
                 } else {
-                    self.end = true;
+                    let (new_ops, overflow) = inc_ops(&self.ops);
+                    if overflow {
+                        self.end = true;
+                    }
+                    Some(mem::replace(&mut self.ops, new_ops))
                 }
-                Some(out)
             }
         }
     }
 }
-
 mod parse {
     //! tests: line+ trailer
     //! line: label nums '\n'
@@ -272,35 +252,23 @@ mod parse {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
 
     use crate::day07::{
+        ops::{perms::OpPerms, Op},
         parse::parse,
         part1::{self, good},
         Test,
     };
 
-    use super::{
-        part1::{AllPerms, Permutations},
-        Num,
-    };
-
     #[test]
-    fn test_all_perms() {
-        let i: [Num; 3] = [1, 2, 3];
-        let j: HashSet<Vec<Num>> = HashSet::from([
-            vec![1],
-            vec![2],
-            vec![3],
-            vec![1, 2],
-            vec![2, 1],
-            vec![1, 3],
-            vec![3, 1],
-            vec![2, 3],
-            vec![3, 2],
-        ]);
-        let k: HashSet<Vec<Num>> = HashSet::from_iter(AllPerms::new(&i));
-        assert_eq!(j, k);
+    fn test_op_perms() {
+        let all = vec![
+            vec![Op::Add, Op::Add],
+            vec![Op::Add, Op::Mul],
+            vec![Op::Mul, Op::Add],
+            vec![Op::Mul, Op::Mul],
+        ];
+        assert_eq!(all, Vec::from_iter(OpPerms::new(2)))
     }
 
     #[test]
@@ -339,30 +307,5 @@ mod tests {
 292: 11 6 16 20
 ";
         assert_eq!(part1::part1(input), 3749);
-    }
-
-    fn fact(n: usize) -> usize {
-        if n == 0 {
-            1
-        } else {
-            (1..=n).product()
-        }
-    }
-
-    #[test]
-    fn test_perm() {
-        let i: [Num; 3] = [1, 2, 3];
-        let j = HashSet::from([
-            vec![1, 2, 3],
-            vec![1, 3, 2],
-            vec![2, 1, 3],
-            vec![2, 3, 1],
-            vec![3, 1, 2],
-            vec![3, 2, 1],
-        ]);
-        assert_eq!(j.len(), fact(i.len()));
-        let k = Vec::from_iter(Permutations::new(i.iter().copied()));
-        assert_eq!(j.len(), k.len());
-        assert_eq!(HashSet::from_iter(k.iter().cloned()), j);
     }
 }
