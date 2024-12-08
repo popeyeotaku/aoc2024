@@ -1,9 +1,13 @@
 use std::fs;
 
+use perms::OpPerms;
+
 pub fn day07() {
     let input = fs::read_to_string("day07_input.txt").unwrap();
     let sum = part1::part1(&input);
     println!("total calibration result: {}", sum);
+    let sum = part2::part2(&input);
+    println!("total concatted calibration result: {}", sum);
 }
 
 type Num = u64;
@@ -12,10 +16,9 @@ type Out2 = Num;
 type Test = (Num, Vec<Num>);
 
 mod part1 {
-
     use crate::day07::parse::parse;
 
-    use super::{exec, perms::OpPerms, Binary, Num, Operator, Out1, Test};
+    use super::{good, Binary, Num, Operator, Out1};
 
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum Op {
@@ -48,18 +51,90 @@ mod part1 {
 
     pub fn part1(input: &str) -> Out1 {
         let tests = parse(input);
-        let sum: Num = tests.iter().filter(|t| good(t)).map(|t| t.0).sum();
+        let sum: Out1 = tests
+            .iter()
+            .filter(|t| good::<Op, Num>(t))
+            .map(|t| t.0)
+            .sum();
         sum
     }
+}
 
-    pub fn good(test: &Test) -> bool {
-        let (label, nums) = test;
-        for ops in OpPerms::<Op>::new(nums.len() - 1) {
-            if exec(nums, &ops) == *label {
-                return true;
+fn good<T, N>(test: &(N, Vec<N>)) -> bool
+where
+    T: Operator + Binary<N> + Clone + Sized,
+    N: Sized + PartialEq + Clone,
+{
+    let (label, nums) = test;
+    for ops in OpPerms::<T>::new(nums.len() - 1) {
+        if exec(nums.as_slice(), &ops) == label.clone() {
+            return true;
+        }
+    }
+    false
+}
+
+mod part2 {
+    use super::{good, parse::parse, Binary, Num, Operator, Out2};
+
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub enum Op {
+        Add,
+        Mul,
+        Concat,
+    }
+
+    impl Operator for Op {
+        const FIRST: Self = Self::Add;
+
+        fn next(&self) -> Option<Self>
+        where
+            Self: Sized,
+        {
+            match self {
+                Op::Add => Some(Self::Mul),
+                Op::Mul => Some(Self::Concat),
+                Op::Concat => None,
             }
         }
-        false
+    }
+
+    impl Binary<Num> for Op {
+        fn exec(&self, left: Num, right: Num) -> Num {
+            match self {
+                Op::Add => left + right,
+                Op::Mul => left * right,
+                Op::Concat => concat_num(left, right),
+            }
+        }
+    }
+
+    pub fn concat_num(left: Num, right: Num) -> Num {
+        left * (10 as Num).pow(ndigits(right) as u32) + right
+    }
+
+    fn ndigits(n: Num) -> u8 {
+        if n == 0 {
+            1
+        } else {
+            let mut n = n;
+            let mut i = 0;
+            while n != 0 {
+                i += 1;
+                n /= 10;
+            }
+            i
+        }
+    }
+
+    pub fn part2(input: &str) -> Out2 {
+        let tests = parse(input);
+        let sum: Out2 = tests
+            .iter()
+            .filter(|t| good::<Op, Num>(t))
+            .map(|t| t.0)
+            .sum();
+        sum
     }
 }
 
@@ -109,14 +184,15 @@ where
     T: Sized + Operator + Binary<N>,
     N: Clone,
 {
-    let mut stack: Vec<N> = Vec::from_iter(args.iter().cloned().rev());
-    for op in ops {
-        let right = stack.pop().unwrap();
-        let left = stack.pop().unwrap();
-        stack.push(op.exec(left, right));
+    if args.len() == 2 {
+        assert_eq!(ops.len(), 1);
+        ops[0].exec(args[0].clone(), args[1].clone())
+    } else {
+        assert!(ops.len() > 1);
+        let left = args[0].clone();
+        let right = exec(&args[1..], &ops[1..]);
+        ops[0].exec(left, right)
     }
-    assert_eq!(stack.len(), 1);
-    stack.pop().unwrap()
 }
 
 mod perms {
@@ -297,14 +373,16 @@ mod parse {
 mod tests {
 
     use crate::day07::{
+        good,
         parse::parse,
-        part1::{self, good},
+        part1::{self, Op},
+        part2::{self, concat_num},
         perms::OpPerms,
-        Test,
+        Num, Test,
     };
 
     #[test]
-    fn test_op_perms() {
+    fn test_op1() {
         use part1::Op;
         let all = vec![
             vec![Op::Add, Op::Add],
@@ -313,6 +391,23 @@ mod tests {
             vec![Op::Mul, Op::Mul],
         ];
         assert_eq!(all, Vec::from_iter(OpPerms::<Op>::new(2)))
+    }
+
+    #[test]
+    fn test_op2() {
+        use part2::Op;
+        let all = vec![
+            vec![Op::Add, Op::Add],
+            vec![Op::Add, Op::Mul],
+            vec![Op::Add, Op::Concat],
+            vec![Op::Mul, Op::Add],
+            vec![Op::Mul, Op::Mul],
+            vec![Op::Mul, Op::Concat],
+            vec![Op::Concat, Op::Add],
+            vec![Op::Concat, Op::Mul],
+            vec![Op::Concat, Op::Concat],
+        ];
+        assert_eq!(all, Vec::from_iter(OpPerms::<Op>::new(2)));
     }
 
     #[test]
@@ -334,12 +429,19 @@ mod tests {
             (292, vec![11, 6, 16, 20]),
         ];
         for test in &tests {
-            assert!(good(test));
+            assert!(good::<Op, Num>(test));
         }
     }
 
     #[test]
-    fn test_part1() {
+    fn test_concat_good() {
+        use part2::Op;
+
+        assert!(good::<Op, Num>(&(156, vec![15, 6])));
+    }
+
+    #[test]
+    fn test_examples() {
         let input = "190: 10 19
 3267: 81 40 27
 83: 17 5
@@ -351,5 +453,13 @@ mod tests {
 292: 11 6 16 20
 ";
         assert_eq!(part1::part1(input), 3749);
+        assert_eq!(part2::part2(input), 11387);
+    }
+
+    #[test]
+    fn test_concat() {
+        assert_eq!(concat_num(123, 456), 123456);
+        assert_eq!(concat_num(1, 0), 10);
+        assert_eq!(concat_num(0, 123), 123);
     }
 }
