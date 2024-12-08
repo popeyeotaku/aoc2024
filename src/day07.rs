@@ -8,16 +8,43 @@ pub fn day07() {
 
 type Num = u64;
 type Out1 = Num;
-type Out2 = ();
+type Out2 = Num;
 type Test = (Num, Vec<Num>);
 
 mod part1 {
 
-    use super::ops::{operate, perms::OpPerms};
-
     use crate::day07::parse::parse;
 
-    use super::{Num, Out1, Test};
+    use super::{exec, perms::OpPerms, Binary, Num, Operator, Out1, Test};
+
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub enum Op {
+        Add,
+        Mul,
+    }
+
+    impl Operator for Op {
+        const FIRST: Self = Self::Add;
+
+        fn next(&self) -> Option<Self>
+        where
+            Self: Sized,
+        {
+            match self {
+                Op::Add => Some(Self::Mul),
+                Op::Mul => None,
+            }
+        }
+    }
+
+    impl Binary<Num> for Op {
+        fn exec(&self, left: Num, right: Num) -> Num {
+            match self {
+                Op::Add => left + right,
+                Op::Mul => left * right,
+            }
+        }
+    }
 
     pub fn part1(input: &str) -> Out1 {
         let tests = parse(input);
@@ -27,8 +54,8 @@ mod part1 {
 
     pub fn good(test: &Test) -> bool {
         let (label, nums) = test;
-        for ops in OpPerms::new(nums.len() - 1) {
-            if operate(nums, &ops) == *label {
+        for ops in OpPerms::<Op>::new(nums.len() - 1) {
+            if exec(nums, &ops) == *label {
                 return true;
             }
         }
@@ -36,86 +63,102 @@ mod part1 {
     }
 }
 
-mod ops {
-    use crate::day07::Num;
+trait Operator {
+    const FIRST: Self;
+    fn next(&self) -> Option<Self>
+    where
+        Self: Sized;
 
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub enum Op {
-        Add,
-        Mul,
+    fn add_zero_with_carry(&self, carry: bool) -> (Self, bool)
+    where
+        Self: Clone,
+    {
+        if carry {
+            if let Some(new_op) = self.next() {
+                (new_op, false)
+            } else {
+                (Self::FIRST.clone(), true)
+            }
+        } else {
+            (self.clone(), false)
+        }
+    }
+}
+
+fn inc_ops<T>(ops: &[T]) -> (Vec<T>, bool)
+where
+    T: Operator + Sized + Clone,
+{
+    let mut new_ops = Vec::with_capacity(ops.len());
+    let mut carry = true;
+    for op in ops.iter().rev() {
+        let (new_op, new_carry) = op.add_zero_with_carry(carry);
+        new_ops.push(new_op);
+        carry = new_carry;
+    }
+    new_ops.reverse();
+    (new_ops, carry)
+}
+
+trait Binary<N> {
+    fn exec(&self, left: N, right: N) -> N;
+}
+
+fn exec<T, N>(args: &[N], ops: &[T]) -> N
+where
+    T: Sized + Operator + Binary<N>,
+    N: Clone,
+{
+    let mut stack: Vec<N> = Vec::from_iter(args.iter().cloned().rev());
+    for op in ops {
+        let right = stack.pop().unwrap();
+        let left = stack.pop().unwrap();
+        stack.push(op.exec(left, right));
+    }
+    assert_eq!(stack.len(), 1);
+    stack.pop().unwrap()
+}
+
+mod perms {
+    use std::mem;
+
+    use super::{inc_ops, Operator};
+
+    /// All permutations of a given number of operators.
+    /// Since there's only 2 operators, we simulate binary incrementing.
+    pub struct OpPerms<T> {
+        ops: Vec<T>,
+        end: bool,
     }
 
-    pub type Total = u64;
-
-    pub fn operate(operands: &[Num], operators: &[Op]) -> Total {
-        let mut stack = Vec::from_iter(operands.iter().copied().map(|n| n as Total).rev());
-        for op in operators {
-            let right = stack.pop().unwrap();
-            let left = stack.pop().unwrap();
-            match op {
-                Op::Add => stack.push(left + right),
-                Op::Mul => stack.push(left * right),
+    impl<T> OpPerms<T>
+    where
+        T: Sized + Operator + Clone,
+    {
+        pub fn new(num_ops: usize) -> Self {
+            assert!(num_ops > 0);
+            Self {
+                ops: vec![T::FIRST.clone(); num_ops],
+                end: false,
             }
         }
-        assert_eq!(stack.len(), 1);
-        stack.pop().unwrap()
     }
 
-    pub mod perms {
-        use std::mem;
+    impl<T> Iterator for OpPerms<T>
+    where
+        T: Sized + Operator + Clone,
+    {
+        type Item = Vec<T>;
 
-        use super::Op;
-
-        /// All permutations of a given number of operators.
-        /// Since there's only 2 operators, we simulate binary incrementing.
-        pub struct OpPerms {
-            ops: Vec<Op>,
-            end: bool,
-        }
-
-        impl OpPerms {
-            pub fn new(num_ops: usize) -> Self {
-                assert!(num_ops > 0);
-                Self {
-                    ops: vec![Op::Add; num_ops],
-                    end: false,
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.end {
+                None
+            } else {
+                let (new_ops, overflow) = inc_ops(&self.ops);
+                if overflow {
+                    self.end = true;
                 }
-            }
-        }
-
-        /// Simulate binary incrementation on the operators.
-        ///
-        /// (add=0,mul=1)
-        fn inc_ops(ops: &[Op]) -> (Vec<Op>, bool) {
-            let mut carry: bool = true;
-            let mut new_ops = Vec::with_capacity(ops.len());
-            for op in ops.iter().rev() {
-                let (new_carry, new_op) = match (op, carry) {
-                    (Op::Add, false) => (false, Op::Add),
-                    (Op::Add, true) => (false, Op::Mul),
-                    (Op::Mul, false) => (false, Op::Mul),
-                    (Op::Mul, true) => (true, Op::Add),
-                };
-                carry = new_carry;
-                new_ops.push(new_op);
-            }
-            new_ops.reverse();
-            (new_ops, carry)
-        }
-
-        impl Iterator for OpPerms {
-            type Item = Vec<Op>;
-
-            fn next(&mut self) -> Option<Self::Item> {
-                if self.end {
-                    None
-                } else {
-                    let (new_ops, overflow) = inc_ops(&self.ops);
-                    if overflow {
-                        self.end = true;
-                    }
-                    Some(mem::replace(&mut self.ops, new_ops))
-                }
+                Some(mem::replace(&mut self.ops, new_ops))
             }
         }
     }
@@ -254,21 +297,22 @@ mod parse {
 mod tests {
 
     use crate::day07::{
-        ops::{perms::OpPerms, Op},
         parse::parse,
         part1::{self, good},
+        perms::OpPerms,
         Test,
     };
 
     #[test]
     fn test_op_perms() {
+        use part1::Op;
         let all = vec![
             vec![Op::Add, Op::Add],
             vec![Op::Add, Op::Mul],
             vec![Op::Mul, Op::Add],
             vec![Op::Mul, Op::Mul],
         ];
-        assert_eq!(all, Vec::from_iter(OpPerms::new(2)))
+        assert_eq!(all, Vec::from_iter(OpPerms::<Op>::new(2)))
     }
 
     #[test]
