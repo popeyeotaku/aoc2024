@@ -1,6 +1,9 @@
 //! Advent of Code 2024 by Troy F.
 
-use aoc2024::{day01::day01, day02::day02, day03::day03, day04::day04, day05::day05, day06::day06};
+use aoc2024::{
+    day01::day01, day02::day02, day03::day03, day04::day04, day05::day05, day06::day06,
+    day07::day07,
+};
 use clap::Parser;
 
 fn main() {
@@ -12,6 +15,7 @@ fn main() {
         4 => day04(),
         5 => day05(),
         6 => day06(),
+        7 => day07(),
         _ => panic!("bad day"),
     }
 }
