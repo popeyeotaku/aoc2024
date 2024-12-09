@@ -4,6 +4,8 @@ pub fn day08() {
     let input = fs::read_to_string("day08_input.txt").unwrap();
     let sum = part1::part1(&input).len();
     println!("part 1: {}", sum);
+    let sum = part2::part2(&input).len();
+    println!("part 2: {}", sum);
 }
 
 mod vec2;
@@ -14,13 +16,16 @@ mod parse;
 
 mod part1;
 
-mod part2 {}
+mod part2;
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
 
-    use crate::day08::part1;
+    use crate::day08::{
+        part1,
+        part2::{self},
+    };
 
     #[test]
     fn test_sample() {
@@ -59,5 +64,6 @@ mod tests {
             HashSet::from_iter(antinodes.iter().map(|a| [a.x, a.y])),
             poslist
         );
+        assert_eq!(part2::part2(input).len(), 34);
     }
 }

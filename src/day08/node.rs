@@ -26,9 +26,13 @@ pub struct AntiNode {
 }
 
 impl AntiNode {
-    pub fn new(node: Node, width: u16, height: u16) -> Option<Self> {
-        let x = node.pos.x.round();
-        let y = node.pos.y.round();
+    #[inline]
+    pub fn new(x: u16, y: u16) -> Self {
+        Self { x, y }
+    }
+    pub fn from_vec2(pos: Vec2, width: u16, height: u16) -> Option<Self> {
+        let x = pos.x.round();
+        let y = pos.y.round();
         if x >= 0.0 && x < (width as f64) && y >= 0.0 && y < (height as f64) {
             Some(Self {
                 x: x as u16,

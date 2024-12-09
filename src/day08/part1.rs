@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 
-use super::{
-    node::{AntiNode, Node},
-    parse::parse,
-};
+use super::{node::AntiNode, parse::parse};
 
 pub type Out = HashSet<AntiNode>;
 
@@ -22,9 +19,7 @@ pub fn part1(s: &str) -> Out {
                     let b_dist = pos.dist(b.pos);
                     assert_eq!((a_dist - 2.0 * b_dist).abs().floor(), 0.0);
                 }
-                if let Some(antinode) =
-                    AntiNode::new(Node::new(a.code, pos.x, pos.y), width, height)
-                {
+                if let Some(antinode) = AntiNode::from_vec2(pos, width, height) {
                     antinodes.insert(antinode);
                 }
             }
