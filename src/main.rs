@@ -2,7 +2,7 @@
 
 use aoc2024::{
     day01::day01, day02::day02, day03::day03, day04::day04, day05::day05, day06::day06,
-    day07::day07,
+    day07::day07, day08::day08,
 };
 use clap::Parser;
 
@@ -16,6 +16,7 @@ fn main() {
         5 => day05(),
         6 => day06(),
         7 => day07(),
+        8 => day08(),
         _ => panic!("bad day"),
     }
 }
