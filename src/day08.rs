@@ -1,46 +1,25 @@
+use std::fs;
+
 pub fn day08() {
-    todo!()
+    let input = fs::read_to_string("day08_input.txt").unwrap();
+    let sum = part1::part1(&input).len();
+    println!("part 1: {}", sum);
 }
 
 mod vec2;
 
-mod node {
-    use super::vec2::Vec2;
-
-    #[derive(PartialEq, Debug)]
-    pub struct Node {
-        code: char,
-        pos: Vec2,
-    }
-
-    impl Node {
-        #[inline]
-        pub fn new<T>(code: char, x: T, y: T) -> Self
-        where
-            T: Into<f64>,
-        {
-            Self {
-                code,
-                pos: Vec2::new(x.into(), y.into()),
-            }
-        }
-    }
-}
+mod node;
 
 mod parse;
 
-mod part1 {
-    pub type Out = u32;
-
-    pub fn part1(s: &str) -> Out {
-        todo!()
-    }
-}
+mod part1;
 
 mod part2 {}
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::day08::part1;
 
     #[test]
@@ -58,6 +37,27 @@ mod tests {
 ............
 ............
 ";
-        assert_eq!(part1::part1(input), 14);
+        let antinodes = part1::part1(input);
+        let poslist: HashSet<[u16; 2]> = HashSet::from([
+            [6, 0],
+            [11, 0],
+            [3, 1],
+            [4, 2],
+            [10, 2],
+            [2, 3],
+            [9, 4],
+            [1, 5],
+            [3, 6],
+            [0, 7],
+            [7, 7],
+            [10, 10],
+            [10, 11],
+            [6, 5],
+        ]);
+        assert_eq!(poslist.len(), 14);
+        assert_eq!(
+            HashSet::from_iter(antinodes.iter().map(|a| [a.x, a.y])),
+            poslist
+        );
     }
 }

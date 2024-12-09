@@ -2,14 +2,33 @@ use std::ops;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub struct Vec2 {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
 impl Vec2 {
     #[inline]
     pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }
+    }
+
+    pub fn len(self) -> f64 {
+        (self.x.powi(2) + self.y.powi(2)).sqrt()
+    }
+
+    #[inline]
+    pub fn relative(self, other: Self) -> Self {
+        other - self
+    }
+
+    #[inline]
+    pub fn dist(self, other: Self) -> f64 {
+        self.relative(other).len()
+    }
+
+    #[inline]
+    pub fn normal(self) -> Self {
+        self / self.len()
     }
 }
 
