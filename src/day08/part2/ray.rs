@@ -29,6 +29,22 @@ impl Ray {
     pub fn find_x(&self, x: f64) -> Vec2 {
         self.cast(self.find_x_dist(x))
     }
+
+    fn find_y_dist(&self, y: f64) -> f64 {
+        if self.dir.y == 0.0 {
+            0.0
+        } else {
+            (y - self.start.y) / self.dir.y
+        }
+    }
+
+    pub fn find_y(&self, y: f64) -> Vec2 {
+        self.cast(self.find_y_dist(y))
+    }
+
+    pub fn exact_line(&self, target: Vec2) -> bool {
+        self.find_x(target.x) == target || self.find_y(target.y) == target
+    }
 }
 
 #[cfg(test)]
